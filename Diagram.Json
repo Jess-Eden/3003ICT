@@ -5,95 +5,122 @@
   "parts": [
     { "type": "wokwi-breadboard-half", "id": "bb1", "top": 200, "left": -420, "attrs": {} },
     { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": 0, "left": 0, "attrs": {} },
-
-    { "type": "wokwi-stepper-motor", "id": "stepper1", "top": -250, "left": -350, "attrs": { "size": "17" } },
+    {
+      "type": "wokwi-stepper-motor",
+      "id": "stepper1",
+      "top": -250,
+      "left": -350,
+      "attrs": { "size": "17" }
+    },
     { "type": "wokwi-a4988", "id": "drv1", "top": 210, "left": -390, "rotate": 90, "attrs": {} },
-
     { "type": "wokwi-servo", "id": "servo1", "top": -100, "left": -420, "attrs": {} },
-
-    { "type": "wokwi-pir-motion-sensor",    "id": "pir1",   "top": -200, "left": 300, "attrs": {} },
-    { "type": "wokwi-photoresistor-sensor", "id": "ldr1",   "top": -200, "left": 450, "attrs": { "lightLevel": "0.5" } },
-    { "type": "wokwi-hc-sr04",             "id": "ultra1", "top": -200, "left": 600, "attrs": {} },
-
-    { "type": "wokwi-pushbutton", "id": "btn_arm",  "top": 210, "left": 300, "attrs": { "color": "green" } },
-    { "type": "wokwi-pushbutton", "id": "btn_door", "top": 310, "left": 300, "attrs": { "color": "red" } },
-
+    {
+      "type": "wokwi-pir-motion-sensor",
+      "id": "pir1",
+      "top": -197.6,
+      "left": 299.82,
+      "attrs": {"delayTime": "3", "retrigger": "0" }
+    },
+    {
+      "type": "wokwi-photoresistor-sensor",
+      "id": "ldr1",
+      "top": -200,
+      "left": 450,
+      "attrs": { "lightLevel": "0.5" }
+    },
+    {
+      "type": "wokwi-hc-sr04",
+      "id": "ultra1",
+      "top": -200,
+      "left": 600,
+      "attrs": { "distance": "400" }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn_arm",
+      "top": 210,
+      "left": 300,
+      "attrs": { "color": "green" }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn_door",
+      "top": 310,
+      "left": 300,
+      "attrs": { "color": "red" }
+    },
     { "type": "wokwi-resistor", "id": "r1", "top": 210, "left": 450, "attrs": { "value": "220" } },
     { "type": "wokwi-resistor", "id": "r2", "top": 260, "left": 450, "attrs": { "value": "220" } },
     { "type": "wokwi-resistor", "id": "r3", "top": 310, "left": 450, "attrs": { "value": "220" } },
-
-    { "type": "wokwi-led", "id": "led_red",  "top": 210, "left": 530, "attrs": { "color": "red" } },
-    { "type": "wokwi-led", "id": "led_blue", "top": 260, "left": 530, "attrs": { "color": "blue" } },
-    { "type": "wokwi-led", "id": "led_yel",  "top": 310, "left": 530, "attrs": { "color": "yellow" } },
-
+    { "type": "wokwi-led", "id": "led_red", "top": 210, "left": 530, "attrs": { "color": "red" } },
+    {
+      "type": "wokwi-led",
+      "id": "led_blue",
+      "top": 260,
+      "left": 530,
+      "attrs": { "color": "blue" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_yel",
+      "top": 310,
+      "left": 530,
+      "attrs": { "color": "yellow" }
+    },
     { "type": "wokwi-buzzer", "id": "bz1", "top": 360, "left": 450, "attrs": {} }
   ],
   "connections": [
-    ["esp:TX", "$serialMonitor:RX", "", []],
-    ["esp:RX", "$serialMonitor:TX", "", []],
-
-    ["esp:3V3",  "bb1:tp.1",  "red",   []],
-    ["esp:GND.1","bb1:tn.1",  "black", []],
-    ["esp:5V",   "bb1:tp.30", "red",   []],
-    ["bb1:tp.1", "bb1:bp.1",  "red",   []],
-    ["bb1:tn.1", "bb1:bn.1",  "black", []],
-
-    ["drv1:VMOT","bb1:tp.30", "red",    []],
-    ["drv1:VDD", "bb1:tp.3",  "red",    []],
-    ["drv1:GND.1","bb1:tn.2", "black",  []],
-    ["drv1:GND.2","bb1:tn.9", "black",  []],
-    ["drv1:STEP","esp:12",    "green",  []],
-    ["drv1:DIR", "esp:13",    "green",  []],
-
-    ["drv1:RESET","bb1:tp.5", "orange", []],
-    ["drv1:SLEEP","bb1:tp.5", "orange", []],
-    ["drv1:ENABLE","bb1:tn.4","black",  []],
-    ["drv1:MS1",  "bb1:tn.5", "black",  []],
-    ["drv1:MS2",  "bb1:tn.6", "black",  []],
-    ["drv1:MS3",  "bb1:tn.7", "black",  []],
-
-    ["drv1:1B",  "stepper1:A-", "green",  []],
-    ["drv1:1A",  "stepper1:A+", "green",  []],
-    ["drv1:2A",  "stepper1:B+", "green",  []],
-    ["drv1:2B",  "stepper1:B-", "green",  []],
-
-    ["bb1:tp.10","servo1:V+",  "red",    []],
-    ["bb1:tn.10","servo1:GND", "black",  []],
-    ["esp:32",   "servo1:PWM", "orange", []],
-
-    ["bb1:tp.13","pir1:VCC",   "red",    []],
-    ["bb1:tn.13","pir1:GND",   "black",  []],
-    ["pir1:OUT", "esp:14",     "green",  []],
-
-    ["bb1:tp.16","ldr1:VCC",   "red",    []],
-    ["bb1:tn.16","ldr1:GND",   "black",  []],
-    ["ldr1:AO",  "esp:34",     "purple", []],
-
-    ["bb1:tp.19","ultra1:VCC", "red",    []],
-    ["bb1:tn.19","ultra1:GND", "black",  []],
-    ["esp:5",    "ultra1:TRIG","blue",   []],
-    ["esp:18",   "ultra1:ECHO","yellow", []],
-
-    ["btn_arm:1.l",  "esp:4",     "green",  []],
-    ["btn_arm:2.l",  "bb1:tn.22", "black",  []],
-
-    ["btn_door:1.l", "esp:2",     "orange", []],
-    ["btn_door:2.l", "bb1:tn.23", "black",  []],
-
-    ["esp:25",       "r1:1",       "red",    []],
-    ["r1:2",         "led_red:A",  "red",    []],
-    ["led_red:C",    "bb1:tn.25",  "black",  []],
-
-    ["esp:27",       "r2:1",       "blue",   []],
-    ["r2:2",         "led_blue:A", "blue",   []],
-    ["led_blue:C",   "bb1:tn.26",  "black",  []],
-
-    ["esp:33",       "r3:1",       "yellow", []],
-    ["r3:2",         "led_yel:A",  "yellow", []],
-    ["led_yel:C",    "bb1:tn.27",  "black",  []],
-
-    ["esp:26",       "bz1:1",      "blue",   []],
-    ["bz1:2",        "bb1:tn.28",  "black",  []]
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+    [ "esp:3V3", "bb1:tp.1", "red", [] ],
+    [ "esp:GND.1", "bb1:tn.1", "black", [] ],
+    [ "esp:5V", "bb1:tp.30", "red", [] ],
+    [ "bb1:tp.1", "bb1:bp.1", "red", [] ],
+    [ "bb1:tn.1", "bb1:bn.1", "black", [] ],
+    [ "drv1:VMOT", "bb1:tp.30", "red", [] ],
+    [ "drv1:VDD", "bb1:tp.3", "red", [] ],
+    [ "drv1:GND.1", "bb1:tn.2", "black", [] ],
+    [ "drv1:GND.2", "bb1:tn.9", "black", [] ],
+    [ "drv1:STEP", "esp:12", "green", [] ],
+    [ "drv1:DIR", "esp:13", "green", [] ],
+    [ "drv1:RESET", "bb1:tp.5", "orange", [] ],
+    [ "drv1:SLEEP", "bb1:tp.5", "orange", [] ],
+    [ "drv1:ENABLE", "bb1:tn.4", "black", [] ],
+    [ "drv1:MS1", "bb1:tn.5", "black", [] ],
+    [ "drv1:MS2", "bb1:tn.6", "black", [] ],
+    [ "drv1:MS3", "bb1:tn.7", "black", [] ],
+    [ "drv1:1B", "stepper1:A-", "green", [] ],
+    [ "drv1:1A", "stepper1:A+", "green", [] ],
+    [ "drv1:2A", "stepper1:B+", "green", [] ],
+    [ "drv1:2B", "stepper1:B-", "green", [] ],
+    [ "bb1:tp.10", "servo1:V+", "red", [] ],
+    [ "bb1:tn.10", "servo1:GND", "black", [] ],
+    [ "esp:32", "servo1:PWM", "orange", [] ],
+    [ "bb1:tp.13", "pir1:VCC", "red", [] ],
+    [ "bb1:tn.13", "pir1:GND", "black", [] ],
+    [ "pir1:OUT", "esp:14", "green", [] ],
+    [ "bb1:tp.16", "ldr1:VCC", "red", [] ],
+    [ "bb1:tn.16", "ldr1:GND", "black", [] ],
+    [ "ldr1:AO", "esp:34", "purple", [] ],
+    [ "bb1:tp.19", "ultra1:VCC", "red", [] ],
+    [ "bb1:tn.19", "ultra1:GND", "black", [] ],
+    [ "esp:5", "ultra1:TRIG", "blue", [] ],
+    [ "esp:18", "ultra1:ECHO", "yellow", [] ],
+    [ "btn_arm:1.l", "esp:4", "green", [] ],
+    [ "btn_arm:2.l", "bb1:tn.22", "black", [] ],
+    [ "btn_door:1.l", "esp:2", "orange", [] ],
+    [ "btn_door:2.l", "bb1:tn.23", "black", [] ],
+    [ "esp:25", "r1:1", "red", [] ],
+    [ "r1:2", "led_red:A", "red", [] ],
+    [ "led_red:C", "bb1:tn.25", "black", [] ],
+    [ "esp:27", "r2:1", "blue", [] ],
+    [ "r2:2", "led_blue:A", "blue", [] ],
+    [ "led_blue:C", "bb1:tn.26", "black", [] ],
+    [ "esp:33", "r3:1", "yellow", [] ],
+    [ "r3:2", "led_yel:A", "yellow", [] ],
+    [ "led_yel:C", "bb1:tn.27", "black", [] ],
+    [ "esp:26", "bz1:1", "blue", [] ],
+    [ "bz1:2", "bb1:tn.28", "black", [] ]
   ],
   "dependencies": {}
 }
