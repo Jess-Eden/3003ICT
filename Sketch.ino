@@ -158,7 +158,7 @@ void readSensors() {
   motionDetected = pirTriggered || proximityAlert;
 
   int ldrVal = analogRead(LDR_PIN);
-  isNight = (ldrVal < LDR_NIGHT_THRESHOLD);
+  isNight = (ldrVal > LDR_NIGHT_THRESHOLD);
 
   if (!validateSensors()) {
     sensorFaultCount++;
@@ -172,15 +172,15 @@ void readSensors() {
   }
 
   Serial.printf("[Sensors] PIR:%d", pirTriggered);
-  Serial.printf("  Prox: %d", proximityAlert, "(%dcm)", distanceCM);
-  Serial.printf("Door:");
+  Serial.printf("  Prox: %d", proximityAlert, "(%d cm)", distanceCM);
+  Serial.printf(" Door:");
   if (doorOpen) {
     Serial.print("OPEN");
   } else {
     Serial.print("CLOSED");
   }
-  Serial.printf("  Night:$d", isNight);
-  Serial.printf("  LDR:%d", ldrVal);
+  Serial.printf("  Night:%d", isNight);
+  Serial.printf("  LDR:%d\n", ldrVal);
 }
 
 int readUltrasonic() {
