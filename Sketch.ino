@@ -319,23 +319,9 @@ void enterState(SystemState newState) {
 
 //FSM ACTING
 void setLEDs(bool red, bool blue, bool yellow) {
-  if (red) {
-    digitalWrite(LED_RED_PIN, HIGH);
-  } else {
-    digitalWrite(LED_RED_PIN, LOW);
-  }
-
-  if (blue) {
-    digitalWrite(LED_BLUE_PIN, HIGH);
-  } else {
-    digitalWrite(LED_BLUE_PIN, LOW);
-  }
-
-  if (yellow) {
-    digitalWrite(LED_YEL_PIN, HIGH);
-  } else {
-    digitalWrite(LED_YEL_PIN, LOW);
-  }
+  digitalWrite(LED_RED_PIN, red);
+  digitalWrite(LED_BLUE_PIN, blue);
+  digitalWrite(LED_YEL_PIN, yellow);
 }
 
 void blinkAlarmLEDs() {
