@@ -89,6 +89,10 @@ unsigned long pollInterval();
 float triggerDistance = DETECT_DISTANCE_CM
 void updateTriggerDistance(int distanceCM, bool pirTriggered);
 
+#define LDR_WINDOW_MS 600000
+float averagedLdrVal;
+float updateLdrVal();
+
 void setup() {
   Serial.begin(115200);
   Serial.println("SecuraHome Initialising...");
@@ -98,6 +102,9 @@ void setup() {
   pinMode(ARM_BTN_PIN, INPUT_PULLUP);
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
+
+  pinMode(LDR_PIN, INPUT);
+  averagedLdrVal = analogRead(LDR_PIN);
 
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(LED_RED_PIN, OUTPUT);
@@ -164,8 +171,8 @@ void readSensors() {
   //Sensor fusion: PIR or Proximity = motion detected
   motionDetected = pirTriggered && proximityAlert;
 
-  int ldrVal = analogRead(LDR_PIN);
-  isNight = (ldrVal > LDR_NIGHT_THRESHOLD);
+  updateLdrVal();
+  isNight = (averagedLdrVal > LDR_NIGHT_THRESHOLD);
 
   if (!validateSensors()) {
     sensorFaultCount++;
@@ -208,6 +215,12 @@ void updateTriggerDistance(int distanceCM, bool pirTriggered) {
   if (!pirTriggered || isNight || currentState != MONITORING || distanceCM < 0) return;
   triggerDistance = DIST_ALPHA * (float)distanceCM + (1.0f - DIST_ALPHA) * triggerDistance;
   triggerDistance = constrain(triggerDistance, 100.0f, 1000.0f);
+}
+
+void updateLdrVal() {
+  int pollMS = pollInterval();
+  float alpha = 1 - exp(-(float)pollMS/LDR_WINDOW_MS);
+  averagedLdrVal = alpha*analogRead(LDR_PIN) + (1-alpha)*averagedLdrVal;
 }
 
 bool validateSensors() {
