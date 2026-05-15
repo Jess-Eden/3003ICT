@@ -84,6 +84,11 @@ int  readUltrasonic();
 bool validateSensors();
 unsigned long pollInterval();
 
+#define DIST_ALPHA 0.001
+#define DIST_THRESHOLD_RATIO 0.7
+float triggerDistance = DETECT_DISTANCE_CM
+void updateTriggerDistance(int distanceCM, bool pirTriggered);
+
 void setup() {
   Serial.begin(115200);
   Serial.println("SecuraHome Initialising...");
@@ -152,10 +157,12 @@ void readSensors() {
   bool pirTriggered = (digitalRead(PIR_PIN) == HIGH);
 
   distanceCM = readUltrasonic();
-  proximityAlert = (distanceCM > 0 && distanceCM < DETECT_DISTANCE_CM);
+
+  updateTriggerDistance(distanceCM, pirTriggered);
+  proximityAlert = (distanceCM > 0 && distanceCM < triggerDistance * DIST_THRESHOLD_RATIO);
 
   //Sensor fusion: PIR or Proximity = motion detected
-  motionDetected = pirTriggered || proximityAlert;
+  motionDetected = pirTriggered && proximityAlert;
 
   int ldrVal = analogRead(LDR_PIN);
   isNight = (ldrVal > LDR_NIGHT_THRESHOLD);
@@ -194,6 +201,13 @@ int readUltrasonic() {
     return -1;
   }
   return (int)(duration * 0.034 / 2);
+}
+
+void updateTriggerDistance(int distanceCM, bool pirTriggered) {
+  // only update if valid motion during the day and not in an alarm state
+  if (!pirTriggered || isNight || currentState != MONITORING || distanceCM < 0) return;
+  triggerDistance = DIST_ALPHA * (float)distanceCM + (1.0f - DIST_ALPHA) * triggerDistance;
+  triggerDistance = constrain(triggerDistance, 100.0f, 1000.0f);
 }
 
 bool validateSensors() {
