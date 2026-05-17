@@ -86,12 +86,12 @@ unsigned long pollInterval();
 
 #define DIST_ALPHA 0.001
 #define DIST_THRESHOLD_RATIO 0.7
-float triggerDistance = DETECT_DISTANCE_CM
+float triggerDistance = DETECT_DISTANCE_CM;
 void updateTriggerDistance(int distanceCM, bool pirTriggered);
 
 #define LDR_WINDOW_MS 600000
 float averagedLdrVal;
-float updateLdrVal();
+void updateLdrVal();
 
 void setup() {
   Serial.begin(115200);
@@ -194,7 +194,7 @@ void readSensors() {
     Serial.print("CLOSED");
   }
   Serial.printf("  Night:%d", isNight);
-  Serial.printf("  LDR:%d\n", ldrVal);
+  Serial.printf("  LDR:%d\n", averagedLdrVal);
 }
 
 int readUltrasonic() {
@@ -259,7 +259,7 @@ void runFSM() {
       break;
 
     case CAUTION:
-      if (now - cuationStartTime >= CAUTION_CONFIRM_MS) {
+      if (now - cautionStartTime >= CAUTION_CONFIRM_MS) {
         enterState(ALARM);
       } else if (!motionDetected && !doorOpen && !isNight) {
         Serial.println("[CAUTION] Threat resolved. Back to MONITORING.");
