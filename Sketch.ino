@@ -34,7 +34,7 @@
 //Tunable Constant
 #define LDR_NIGHT_THRESHOLD 1800
 #define DETECT_DISTANCE_CM  50
-#define INTRUSION_CONFIRM_MS  2000
+#define CAUTION_CONFIRM_MS  5000
 #define ALARM_TIMEOUT_MS  10000
 #define POLL_IDLE_MS  500
 #define POLL_ACTIVE_MS  100
@@ -43,9 +43,9 @@
 #define FAULT_THRESHOLD 3
 
 //FSM States
-enum SystemState : uint8_t {DISARMED, ARMED, MONITORING, INTRUSION, ALARM, FAILSAFE};
+enum SystemState : uint8_t {DISARMED, ARMED, MONITORING, CAUTION, ALARM, FAILSAFE};
 
-const char* STATES[] = {"DISARMED", "ARMED", "MONITORING", "INTRUSION", "ALARM", "FAILSAFE"};
+const char* STATES[] = {"DISARMED", "ARMED", "MONITORING", "CAUTION", "ALARM", "FAILSAFE"};
 
 SystemState currentState = DISARMED;
 Servo windowServo;
@@ -60,7 +60,7 @@ bool isNight = false;
 int  distanceCM = 0;
 
 unsigned long lastPollTime = 0;
-unsigned long intrusionStartTime = 0;
+unsigned long cautionStartTime = 0;
 unsigned long alarmStartTime = 0;
 unsigned long lastBlinkTime = 0;
 unsigned long lastArmPress = 0;
@@ -84,6 +84,15 @@ int  readUltrasonic();
 bool validateSensors();
 unsigned long pollInterval();
 
+#define DIST_ALPHA 0.1
+#define DIST_THRESHOLD_RATIO 0.7
+float triggerDistance = DETECT_DISTANCE_CM;
+void updateTriggerDistance(int distanceCM, bool pirTriggered);
+
+#define LDR_WINDOW_MS 10000
+float averagedLdrVal;
+void updateLdrVal();
+
 void setup() {
   Serial.begin(115200);
   Serial.println("SecuraHome Initialising...");
@@ -93,6 +102,9 @@ void setup() {
   pinMode(ARM_BTN_PIN, INPUT_PULLUP);
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
+
+  pinMode(LDR_PIN, INPUT);
+  averagedLdrVal = analogRead(LDR_PIN);
 
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(LED_RED_PIN, OUTPUT);
@@ -152,13 +164,15 @@ void readSensors() {
   bool pirTriggered = (digitalRead(PIR_PIN) == HIGH);
 
   distanceCM = readUltrasonic();
-  proximityAlert = (distanceCM > 0 && distanceCM < DETECT_DISTANCE_CM);
+
+  updateTriggerDistance(distanceCM, pirTriggered);
+  proximityAlert = (distanceCM > 0 && distanceCM < triggerDistance * DIST_THRESHOLD_RATIO);
 
   //Sensor fusion: PIR or Proximity = motion detected
-  motionDetected = pirTriggered || proximityAlert;
+  motionDetected = pirTriggered && proximityAlert;
 
-  int ldrVal = analogRead(LDR_PIN);
-  isNight = (ldrVal > LDR_NIGHT_THRESHOLD);
+  updateLdrVal();
+  isNight = (averagedLdrVal > LDR_NIGHT_THRESHOLD);
 
   if (!validateSensors()) {
     sensorFaultCount++;
@@ -172,7 +186,7 @@ void readSensors() {
   }
 
   Serial.printf("[Sensors] PIR:%d", pirTriggered);
-  Serial.printf("  Prox: %d", proximityAlert, "(%d cm)", distanceCM);
+  Serial.printf("  Prox:%d (%dcm)", proximityAlert, distanceCM);
   Serial.printf(" Door:");
   if (doorOpen) {
     Serial.print("OPEN");
@@ -180,7 +194,7 @@ void readSensors() {
     Serial.print("CLOSED");
   }
   Serial.printf("  Night:%d", isNight);
-  Serial.printf("  LDR:%d\n", ldrVal);
+  Serial.printf("  LDR:%.0f\n", averagedLdrVal);
 }
 
 int readUltrasonic() {
@@ -196,13 +210,28 @@ int readUltrasonic() {
   return (int)(duration * 0.034 / 2);
 }
 
+void updateTriggerDistance(int distanceCM, bool pirTriggered) {
+  // only update if valid motion during the day and not in an alarm state
+  if (!pirTriggered || isNight || currentState != MONITORING || distanceCM < 0) return;
+  triggerDistance = DIST_ALPHA * (float)distanceCM + (1.0f - DIST_ALPHA) * triggerDistance;
+  triggerDistance = constrain(triggerDistance, 100.0f, 1000.0f);
+  Serial.printf("[Learn] triggerDistance: %.1fcm  threshold: %.1fcm\n", 
+                triggerDistance, triggerDistance * DIST_THRESHOLD_RATIO);
+}
+
+void updateLdrVal() {
+  int pollMS = pollInterval();
+  float alpha = 1 - exp(-(float)pollMS/LDR_WINDOW_MS);
+  averagedLdrVal = alpha*analogRead(LDR_PIN) + (1-alpha)*averagedLdrVal;
+}
+
 bool validateSensors() {
   int ldrVal = analogRead(LDR_PIN);
   return (ldrVal >= 0 && ldrVal <= 4095);
 }
 
 unsigned long pollInterval() {
-  if (currentState == INTRUSION || currentState == ALARM){
+  if (currentState == CAUTION || currentState == ALARM){
     return POLL_ACTIVE_MS;
   }
   return POLL_IDLE_MS;
@@ -224,18 +253,18 @@ void runFSM() {
     case MONITORING:
       if (motionDetected && doorOpen) {
         Serial.println("[MONITORING] Motion + open door detected!");
-        enterState(INTRUSION);
+        enterState(CAUTION);
       } else if (isNight && motionDetected) {
         Serial.println("[Night Mode] Elevated sensitivity – escalating.");
-        enterState(INTRUSION);
+        enterState(CAUTION);
       }
       break;
 
-    case INTRUSION:
-      if (now - intrusionStartTime >= INTRUSION_CONFIRM_MS) {
+    case CAUTION:
+      if (now - cautionStartTime >= CAUTION_CONFIRM_MS) {
         enterState(ALARM);
       } else if (!motionDetected && !doorOpen && !isNight) {
-        Serial.println("[INTRUSION] Threat resolved. Back to MONITORING.");
+        Serial.println("[CAUTION] Threat resolved. Back to MONITORING.");
         enterState(MONITORING);
       }
       break;
@@ -289,13 +318,13 @@ void enterState(SystemState newState) {
       Serial.println("[MONITORING] Standby. Sensor fusion active.");
       break;
 
-    case INTRUSION:
+    case CAUTION:
       setLEDs(true, false, false);
       buzzerOff();
       lockDoor();
       lockWindow();
-      intrusionStartTime = millis();
-      Serial.println("[INTRUSION] Door + Window locked! Confirming threat...");
+      cautionStartTime = millis();
+      Serial.println("[CAUTION] Door + Window locked! Confirming threat...");
       break;
 
     case ALARM:
@@ -319,23 +348,9 @@ void enterState(SystemState newState) {
 
 //FSM ACTING
 void setLEDs(bool red, bool blue, bool yellow) {
-  if (red) {
-    digitalWrite(LED_RED_PIN, HIGH);
-  } else {
-    digitalWrite(LED_RED_PIN, LOW);
-  }
-
-  if (blue) {
-    digitalWrite(LED_BLUE_PIN, HIGH);
-  } else {
-    digitalWrite(LED_BLUE_PIN, LOW);
-  }
-
-  if (yellow) {
-    digitalWrite(LED_YEL_PIN, HIGH);
-  } else {
-    digitalWrite(LED_YEL_PIN, LOW);
-  }
+  digitalWrite(LED_RED_PIN, red);
+  digitalWrite(LED_BLUE_PIN, blue);
+  digitalWrite(LED_YEL_PIN, yellow);
 }
 
 void blinkAlarmLEDs() {
