@@ -87,7 +87,7 @@ unsigned long pollInterval();
 #define DIST_ALPHA 0.1
 #define DIST_THRESHOLD_RATIO 0.7
 float triggerDistance = DETECT_DISTANCE_CM;
-void updateTriggerDistance(int distanceCM, bool pirTriggered);
+void updateTriggerDistance(int distanceCM);
 
 #define LDR_WINDOW_MS 10000
 float averagedLdrVal;
@@ -161,15 +161,12 @@ void loop() {
 
 //FSM sensing
 void readSensors() {
-  bool pirTriggered = (digitalRead(PIR_PIN) == HIGH);
+  motionDetected = (digitalRead(PIR_PIN) == HIGH);
 
   distanceCM = readUltrasonic();
 
-  updateTriggerDistance(distanceCM, pirTriggered);
+  updateTriggerDistance(distanceCM);
   proximityAlert = (distanceCM > 0 && distanceCM < triggerDistance * DIST_THRESHOLD_RATIO);
-
-  //Sensor fusion: PIR or Proximity = motion detected
-  motionDetected = pirTriggered && proximityAlert;
 
   updateLdrVal();
   isNight = (averagedLdrVal > LDR_NIGHT_THRESHOLD);
@@ -185,7 +182,7 @@ void readSensors() {
     sensorFaultCount = 0;
   }
 
-  Serial.printf("[Sensors] PIR:%d", pirTriggered);
+  Serial.printf("[Sensors] PIR:%d", motionDetected);
   Serial.printf("  Prox:%d (%dcm)", proximityAlert, distanceCM);
   Serial.printf(" Door:");
   if (doorOpen) {
@@ -210,9 +207,9 @@ int readUltrasonic() {
   return (int)(duration * 0.034 / 2);
 }
 
-void updateTriggerDistance(int distanceCM, bool pirTriggered) {
+void updateTriggerDistance(int distanceCM) {
   // only update if valid motion during the day and not in an alarm state
-  if (!pirTriggered || isNight || currentState != MONITORING || distanceCM < 0) return;
+  if (!motionDetected || isNight || currentState != MONITORING || distanceCM < 0) return;
   triggerDistance = DIST_ALPHA * (float)distanceCM + (1.0f - DIST_ALPHA) * triggerDistance;
   triggerDistance = constrain(triggerDistance, 100.0f, 1000.0f);
   Serial.printf("[Learn] triggerDistance: %.1fcm  threshold: %.1fcm\n", 
@@ -240,7 +237,7 @@ unsigned long pollInterval() {
 //FSM thinking
 void runFSM() {
   unsigned long now = millis();
-
+  float monitoringFusion = 3*proximityAlert + 2*motionDetected + 1.5*doorOpen + 1*isNight;
   switch (currentState) {
 
     case DISARMED:
@@ -251,21 +248,18 @@ void runFSM() {
       break;
 
     case MONITORING:
-      if (motionDetected && doorOpen) {
-        Serial.println("[MONITORING] Motion + open door detected!");
-        enterState(CAUTION);
-      } else if (isNight && motionDetected) {
-        Serial.println("[Night Mode] Elevated sensitivity – escalating.");
+      if (monitoringFusion >= 4) {
+        Serial.println("[MONITORING] Danger threshold met - escalating");
         enterState(CAUTION);
       }
       break;
 
     case CAUTION:
-      if (now - cautionStartTime >= CAUTION_CONFIRM_MS) {
-        enterState(ALARM);
-      } else if (!motionDetected && !doorOpen && !isNight) {
+      if (monitoringFusion < 1.5) {
         Serial.println("[CAUTION] Threat resolved. Back to MONITORING.");
         enterState(MONITORING);
+      } else if (now - cautionStartTime >= CAUTION_CONFIRM_MS) {
+        enterState(ALARM);
       }
       break;
 
