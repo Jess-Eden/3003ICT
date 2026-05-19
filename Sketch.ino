@@ -194,7 +194,7 @@ void readSensors() {
     Serial.print("CLOSED");
   }
   Serial.printf("  Night:%d", isNight);
-  Serial.printf("  LDR:%.0f\n", averagedLdrVal);
+  Serial.printf("  LDR:%d\n", averagedLdrVal);
 }
 
 int readUltrasonic() {
