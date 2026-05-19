@@ -34,7 +34,7 @@
 //Tunable Constant
 #define LDR_NIGHT_THRESHOLD 1800
 #define DETECT_DISTANCE_CM  50
-#define CAUTION_CONFIRM_MS  2000
+#define CAUTION_CONFIRM_MS  5000
 #define ALARM_TIMEOUT_MS  10000
 #define POLL_IDLE_MS  500
 #define POLL_ACTIVE_MS  100
@@ -84,14 +84,14 @@ int  readUltrasonic();
 bool validateSensors();
 unsigned long pollInterval();
 
-#define DIST_ALPHA 0.001
+#define DIST_ALPHA 0.1
 #define DIST_THRESHOLD_RATIO 0.7
-float triggerDistance = DETECT_DISTANCE_CM
+float triggerDistance = DETECT_DISTANCE_CM;
 void updateTriggerDistance(int distanceCM, bool pirTriggered);
 
-#define LDR_WINDOW_MS 600000
+#define LDR_WINDOW_MS 10000
 float averagedLdrVal;
-float updateLdrVal();
+void updateLdrVal();
 
 void setup() {
   Serial.begin(115200);
@@ -186,7 +186,7 @@ void readSensors() {
   }
 
   Serial.printf("[Sensors] PIR:%d", pirTriggered);
-  Serial.printf("  Prox: %d", proximityAlert, "(%d cm)", distanceCM);
+  Serial.printf("  Prox:%d (%dcm)", proximityAlert, distanceCM);
   Serial.printf(" Door:");
   if (doorOpen) {
     Serial.print("OPEN");
@@ -194,7 +194,7 @@ void readSensors() {
     Serial.print("CLOSED");
   }
   Serial.printf("  Night:%d", isNight);
-  Serial.printf("  LDR:%d\n", ldrVal);
+  Serial.printf("  LDR:%.0f\n", averagedLdrVal);
 }
 
 int readUltrasonic() {
@@ -215,6 +215,8 @@ void updateTriggerDistance(int distanceCM, bool pirTriggered) {
   if (!pirTriggered || isNight || currentState != MONITORING || distanceCM < 0) return;
   triggerDistance = DIST_ALPHA * (float)distanceCM + (1.0f - DIST_ALPHA) * triggerDistance;
   triggerDistance = constrain(triggerDistance, 100.0f, 1000.0f);
+  Serial.printf("[Learn] triggerDistance: %.1fcm  threshold: %.1fcm\n", 
+                triggerDistance, triggerDistance * DIST_THRESHOLD_RATIO);
 }
 
 void updateLdrVal() {
@@ -259,7 +261,7 @@ void runFSM() {
       break;
 
     case CAUTION:
-      if (now - cuationStartTime >= CAUTION_CONFIRM_MS) {
+      if (now - cautionStartTime >= CAUTION_CONFIRM_MS) {
         enterState(ALARM);
       } else if (!motionDetected && !doorOpen && !isNight) {
         Serial.println("[CAUTION] Threat resolved. Back to MONITORING.");
