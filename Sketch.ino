@@ -173,7 +173,6 @@ void readSensors() {
 
   if (!validateSensors()) {
     sensorFaultCount++;
-    Serial.printf("[WARN] Sensor fault #%d\n", sensorFaultCount);
     if (sensorFaultCount >= FAULT_THRESHOLD) {
       enterState(FAILSAFE);
       return;
@@ -191,7 +190,7 @@ void readSensors() {
     Serial.print("CLOSED");
   }
   Serial.printf("  Night:%d", isNight);
-  Serial.printf("  LDR:%d\n", averagedLdrVal);
+  Serial.printf("  LDR:%.0f\n", averagedLdrVal);
 }
 
 int readUltrasonic() {
@@ -224,7 +223,7 @@ void updateLdrVal() {
 
 bool validateSensors() {
   int ldrVal = analogRead(LDR_PIN);
-  return (ldrVal >= 0 && ldrVal <= 4095);
+  return (ldrVal >= 10 && ldrVal <= 4085);
 }
 
 unsigned long pollInterval() {
