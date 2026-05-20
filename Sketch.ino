@@ -89,7 +89,7 @@ unsigned long pollInterval();
 float triggerDistance = DETECT_DISTANCE_CM;
 void updateTriggerDistance(int distanceCM);
 
-#define LDR_WINDOW_MS 10000
+#define LDR_WINDOW_MS 5000
 float averagedLdrVal;
 void updateLdrVal();
 
