@@ -44,31 +44,35 @@
 
 //FSM States
 enum SystemState : uint8_t {DISARMED, ARMED, MONITORING, CAUTION, ALARM, FAILSAFE};
-
 const char* STATES[] = {"DISARMED", "ARMED", "MONITORING", "CAUTION", "ALARM", "FAILSAFE"};
 
 SystemState currentState = DISARMED;
 Servo windowServo;
 
+//Initialisation of Global Variables 
+
+//Lock States
 bool isDoorLocked = false;
 bool isWindowLocked = false;
 
+//Sensor States
 bool motionDetected = false;
 bool proximityAlert = false;
 bool doorOpen = false;
 bool isNight = false;
 int  distanceCM = 0;
+bool blinkLedState = false;
 
+//Timers
 unsigned long lastPollTime = 0;
 unsigned long cautionStartTime = 0;
 unsigned long alarmStartTime = 0;
 unsigned long lastBlinkTime = 0;
 unsigned long lastArmPress = 0;
 unsigned long lastDoorPress = 0;
-
-bool blinkLedState = false;
 int  sensorFaultCount = 0;
 
+//Declaring Functions
 void readSensors();
 void runFSM();
 void enterState(SystemState s);
@@ -93,41 +97,51 @@ void updateTriggerDistance(int distanceCM);
 float averagedLdrVal;
 void updateLdrVal();
 
+//Setup Process
 void setup() {
+  //Initialise Serial Communication
   Serial.begin(115200);
   Serial.println("SecuraHome Initialising...");
 
+  //Input Pins
   pinMode(PIR_PIN, INPUT);
   pinMode(DOOR_BTN_PIN, INPUT_PULLUP);
   pinMode(ARM_BTN_PIN, INPUT_PULLUP);
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
 
+  //LDR Pin
   pinMode(LDR_PIN, INPUT);
   averagedLdrVal = analogRead(LDR_PIN);
 
+  //Output Pins
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(LED_RED_PIN, OUTPUT);
   pinMode(LED_BLUE_PIN, OUTPUT);
   pinMode(LED_YEL_PIN, OUTPUT);
 
+  //Stepper Motor Pins
   pinMode(STEP_PIN, OUTPUT);
   pinMode(DIR_PIN, OUTPUT);
   digitalWrite(STEP_PIN, LOW);
   digitalWrite(DIR_PIN, LOW);
 
+  //Servo Pins
   windowServo.attach(SERVO_PIN);
   windowServo.write(SERVO_WINDOW_UNLOCKED);
 
+  //Set initial state
   enterState(DISARMED);
   Serial.println("Ready. Press GREEN button to ARM house.");
 }
 
-
+//Main Loop - Reponsible for continuously polling all sensors and inputs, 
+//allowing for immediate system state transitions without blocking delays
 void loop() {
   unsigned long now = millis();
 
   //ARM/DISARM button
+  //Allows for transition between ARMED and DISARMED State with debounce protection 
   if (digitalRead(ARM_BTN_PIN) == LOW && (now - lastArmPress) > DEBOUNCE_MS) {
     lastArmPress = now;
     if (currentState == DISARMED) {
@@ -138,6 +152,7 @@ void loop() {
   }
 
   //OPEN/CLOSE door
+  //Toggles door open/closed and logs the change within the system
   if (digitalRead(DOOR_BTN_PIN) == LOW && (now - lastDoorPress) > DEBOUNCE_MS) {
     lastDoorPress = now;
     doorOpen = !doorOpen;
@@ -149,6 +164,8 @@ void loop() {
   }
 
   //Sensor polling
+  //Only polls sensors when the system is active and not within the DISARMED OR FAILSAFE states
+  //Poll rate varies depending on whether the system is within a high alert state or within normal monitoring
   if (currentState != DISARMED && currentState != FAILSAFE) {
     if (now - lastPollTime >= pollInterval()) {
       lastPollTime = now;
@@ -156,21 +173,31 @@ void loop() {
     }
   }
 
+  //Running FSM
+  //Responsible for changing between different states based on the gathered information from inputs
   runFSM();
 }
 
-//FSM sensing
+//Sensor Polling
 void readSensors() {
+  //Updates Motion Sensor readings
+  //High signal indicates motion has been detected
   motionDetected = (digitalRead(PIR_PIN) == HIGH);
 
+  //Updates Utrasonic Distance Sensor readings
+  //Reads distance and updates triggerDistance based on certain conditions
+  //Based on the distance, proximityAlert will vary based on the severity of how close a potential threat is
   distanceCM = readUltrasonic();
-
   updateTriggerDistance(distanceCM);
   proximityAlert = (distanceCM > 0 && distanceCM < triggerDistance * DIST_THRESHOLD_RATIO);
 
+  //Updates LDR Readings
+  //Determines whether it is night or day depending on the value received by the LDR
   updateLdrVal();
   isNight = (averagedLdrVal > LDR_NIGHT_THRESHOLD);
 
+  //Determines if a sensor receives a faulty input
+  //Transitioning the system into a FAILSAFE state if true
   if (!validateSensors()) {
     sensorFaultCount++;
     if (sensorFaultCount >= FAULT_THRESHOLD) {
@@ -181,6 +208,7 @@ void readSensors() {
     sensorFaultCount = 0;
   }
 
+  //Responsible for displaying information to the terminal
   Serial.printf("[Sensors] PIR:%d", motionDetected);
   Serial.printf("  Prox:%d (%dcm)", proximityAlert, distanceCM);
   Serial.printf(" Door:");
@@ -193,6 +221,7 @@ void readSensors() {
   Serial.printf("  LDR:%.0f\n", averagedLdrVal);
 }
 
+//Ultrasonic Distance Sensor Reader
 int readUltrasonic() {
   digitalWrite(TRIG_PIN, LOW);
   delayMicroseconds(2);
@@ -206,8 +235,11 @@ int readUltrasonic() {
   return (int)(duration * 0.034 / 2);
 }
 
+//Updates Trigger Distance
+//Only updates if valid motion during the day and not in an alarm state
+//Uses a moving average to adapt the trigger distance based on the foot traffic within the day
+//Ultimately changing the distance required to trigger caution to account for busier or quieter periods
 void updateTriggerDistance(int distanceCM) {
-  // only update if valid motion during the day and not in an alarm state
   if (!motionDetected || isNight || currentState != MONITORING || distanceCM < 0) return;
   triggerDistance = DIST_ALPHA * (float)distanceCM + (1.0f - DIST_ALPHA) * triggerDistance;
   triggerDistance = constrain(triggerDistance, 100.0f, 1000.0f);
@@ -215,17 +247,25 @@ void updateTriggerDistance(int distanceCM) {
                 triggerDistance, triggerDistance * DIST_THRESHOLD_RATIO);
 }
 
+//Updates LDR values
+//Implemented a moving average to account for cloudcover or torches
 void updateLdrVal() {
   int pollMS = pollInterval();
   float alpha = 1 - exp(-(float)pollMS/LDR_WINDOW_MS);
   averagedLdrVal = alpha*analogRead(LDR_PIN) + (1-alpha)*averagedLdrVal;
 }
 
+//Checks fuctionality of LDR sensor
+//If reading extend out of determined range, the sensor is considered faulty
 bool validateSensors() {
   int ldrVal = analogRead(LDR_PIN);
   return (ldrVal >= 10 && ldrVal <= 4085);
 }
 
+//Determines Poll Intervals
+//Will vary polling depending on the state
+//CAUTION and ALARM state allows for fasting polling times
+//While MONITORING state is provided a lower polling time
 unsigned long pollInterval() {
   if (currentState == CAUTION || currentState == ALARM){
     return POLL_ACTIVE_MS;
@@ -234,35 +274,39 @@ unsigned long pollInterval() {
 }
 
 //FSM thinking
+//Responsible for changing between different states
+//The monitoringfusion variable is responsible for acting as a fusion score, scaling the threat relevance
+//States escalate in severity from: DISARMED -> ARMED -> MONITORING -> CAUTION -> ALARM
+//Thus, the system is able to respond proportionally to the situation
 void runFSM() {
   unsigned long now = millis();
   float monitoringFusion = 3*proximityAlert + 2*motionDetected + 1.5*doorOpen + 1*isNight;
   switch (currentState) {
 
-    case DISARMED:
+    case DISARMED: //System inactive
       break;
 
-    case ARMED:
+    case ARMED: //Transition from ARMED state to MONITORING state
       enterState(MONITORING);
       break;
 
-    case MONITORING:
+    case MONITORING: //Escalates to CAUTION if fusion score exceeds danger threshold
       if (monitoringFusion >= 4) {
         Serial.println("[MONITORING] Danger threshold met - escalating");
         enterState(CAUTION);
       }
       break;
 
-    case CAUTION:
+    case CAUTION: //Deescalates to MONTIORING if fusion score reduces
       if (monitoringFusion < 1.5) {
         Serial.println("[CAUTION] Threat resolved. Back to MONITORING.");
         enterState(MONITORING);
-      } else if (now - cautionStartTime >= CAUTION_CONFIRM_MS) {
+      } else if (now - cautionStartTime >= CAUTION_CONFIRM_MS) { //If threat persists, escalates to ALARM
         enterState(ALARM);
       }
       break;
 
-    case ALARM:
+    case ALARM: //Blinks alarm LEDs and returns to monitoring after a certain time
       blinkAlarmLEDs();
       if (now - alarmStartTime >= ALARM_TIMEOUT_MS) {
         Serial.println("[ALARM] Timeout. Resetting to MONITORING.");
@@ -270,13 +314,14 @@ void runFSM() {
       }
       break;
 
-    case FAILSAFE:
+    case FAILSAFE: //System inactive due to sensor faults
       break;
   }
 }
 
 
 //Transitions between states
+//Handles activing LEDs, buzzer and locks to match the threat level
 void enterState(SystemState newState) {
   if (newState == currentState){
     return;
@@ -287,7 +332,7 @@ void enterState(SystemState newState) {
 
   switch (newState) {
 
-    case DISARMED:
+    case DISARMED: //System is fully reset, with all outputs and locks off
       setLEDs(false, false, false);
       buzzerOff();
       unlockDoor();
@@ -297,13 +342,13 @@ void enterState(SystemState newState) {
       Serial.println("[DISARMED] All locks released. System off.");
       break;
 
-    case ARMED:
+    case ARMED: //Actives Blue led
       setLEDs(false, true, false);
       buzzerOff();
       Serial.println("[ARMED] Blue LED on. Entering monitoring...");
       break;
 
-    case MONITORING:
+    case MONITORING: //Locks are released and blue led continues to function
       setLEDs(false, true, false);
       buzzerOff();
       unlockDoor();
@@ -311,7 +356,7 @@ void enterState(SystemState newState) {
       Serial.println("[MONITORING] Standby. Sensor fusion active.");
       break;
 
-    case CAUTION:
+    case CAUTION: //Locks are armed and tracks the amount of time within the CAUTION state
       setLEDs(true, false, false);
       buzzerOff();
       lockDoor();
@@ -320,7 +365,7 @@ void enterState(SystemState newState) {
       Serial.println("[CAUTION] Door + Window locked! Confirming threat...");
       break;
 
-    case ALARM:
+    case ALARM: //All locks engaged, tracks the amount of time within the ALARM state and flashes LEDs
       lockDoor();
       lockWindow();
       alarmStartTime = millis();
@@ -329,7 +374,7 @@ void enterState(SystemState newState) {
       Serial.println("[ALARM] !! ALARM TRIGGERED !! All locks engaged.");
       break;
 
-    case FAILSAFE:
+    case FAILSAFE: //Actives yellow led, all locks are engaged and awaits for manual reset
       setLEDs(false, false, true);
       buzzerOff();
       lockDoor();
@@ -340,12 +385,17 @@ void enterState(SystemState newState) {
 }
 
 //FSM ACTING
+//Blue Led indicates MONITORING and ARMED
+//Red Led indicates CAUTION
+//Yellow Led indicates FAILSAFE
+//When in ALARM state, system will flash between red and blue
 void setLEDs(bool red, bool blue, bool yellow) {
   digitalWrite(LED_RED_PIN, red);
   digitalWrite(LED_BLUE_PIN, blue);
   digitalWrite(LED_YEL_PIN, yellow);
 }
 
+//Allows for blinking between red and blue led when in ALARM state
 void blinkAlarmLEDs() {
   unsigned long now = millis();
   if (now - lastBlinkTime >= BLINK_INTERVAL_MS) {
@@ -366,6 +416,7 @@ void blinkAlarmLEDs() {
   }
 }
 
+//Turns Buzzer off
 void buzzerOff() { 
   noTone(BUZZER_PIN); 
   digitalWrite(BUZZER_PIN, LOW); 
@@ -395,6 +446,7 @@ void lockDoor() {
   Serial.println("[Stepper] DOOR LOCKED");
 }
 
+//Stepper unlocks door
 void unlockDoor() {
   if (!isDoorLocked) return;
   Serial.println("[Stepper] Unlocking DOOR...");
@@ -414,6 +466,7 @@ void lockWindow() {
   Serial.println("[Servo] WINDOW LOCKED (90deg)");
 }
 
+// Servo window unlock
 void unlockWindow() {
   if (!isWindowLocked){
     return;
