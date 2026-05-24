@@ -1,4 +1,0 @@
-Improve FSM so it can learn on previous encounters e.g. adjusting sensitivity based on how much motion at distances e.g. at day if is next to a public footpath
-Ensure escalation only after repeated motion events.
-Auto-arms at night without manual input.
-Night mode increases lowers thresholds.
